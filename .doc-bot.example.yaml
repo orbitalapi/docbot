@@ -1,0 +1,89 @@
+# Doc-Bot Configuration Example
+# Place this file as .doc-bot.yaml in your repository root
+
+# ============================================================================
+# Trigger Configuration
+# ============================================================================
+trigger:
+  # How the bot is triggered:
+  # - "auto": Bot comments suggestions on every MR/PR that touches matched paths
+  # - "slash-command": Bot only acts when /doc-bot is used in a comment
+  # - "hybrid": Bot auto-triages and suggests, but only writes changes on command
+  mode: hybrid
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+# Claude model to use for analysis and doc generation
+# Options: claude-sonnet-4-5-20250929, claude-opus-4-6, claude-haiku-3-5
+model: claude-sonnet-4-5-20250929
+
+# Maximum agent turns per invocation (controls cost)
+# Higher values allow more complex analysis but cost more
+max_turns: 20
+
+# ============================================================================
+# Style Guide
+# ============================================================================
+# Path to the documentation style guide (relative to repo root)
+# This file is injected into the agent's context as project instructions
+# Optional - if not provided, the agent will follow existing doc style
+style_guide: docs/docs-style.md
+
+# ============================================================================
+# Documentation Targets
+# ============================================================================
+# Define which source code patterns map to which documentation
+
+docs:
+  # Example 1: Same-repo documentation
+  # Documentation lives in the same repository as the source code
+  - source_patterns:
+      - "src/compiler/**"
+      - "src/parser/**"
+      - "src/type-system/**"
+    docs_path: docs/taxi-language/
+    mode: same-repo
+
+  # Example 2: Same-repo API documentation
+  - source_patterns:
+      - "src/api/**/*.ts"
+      - "src/handlers/**/*.ts"
+    docs_path: docs/api/
+    mode: same-repo
+
+  # Example 3: Cross-repo documentation (same platform)
+  # Documentation lives in a different repository on the same platform
+  - source_patterns:
+      - "src/orbital-runtime/**"
+      - "src/executor/**"
+    docs_repo: https://gitlab.com/orbital/orbital-docs
+    docs_path: docs/runtime/
+    mode: cross-repo
+
+  # Example 4: Cross-repo documentation (different platform)
+  # Source on GitLab, docs on GitHub (or vice versa)
+  - source_patterns:
+      - "src/sdk/**"
+      - "packages/client/**"
+    docs_repo: https://github.com/orbital/sdk-documentation
+    docs_path: docs/
+    mode: cross-repo
+
+  # Example 5: Multiple patterns for the same docs
+  - source_patterns:
+      - "src/integrations/slack/**"
+      - "src/integrations/teams/**"
+      - "src/integrations/discord/**"
+    docs_path: docs/integrations/
+    mode: same-repo
+
+# ============================================================================
+# Notes
+# ============================================================================
+# - source_patterns use glob syntax (**, *, ?)
+# - docs_path is relative to the repo root (or docs_repo root for cross-repo)
+# - mode must be either "same-repo" or "cross-repo"
+# - docs_repo is required for cross-repo mode
+# - docs_repo can be on a different platform (GitLab or GitHub)
+# - The bot automatically resolves which platform adapter to use based on the URL
