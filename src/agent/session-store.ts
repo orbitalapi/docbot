@@ -28,12 +28,15 @@ export interface SessionData {
 export class SessionStore {
   private sessions = new Map<string, SessionData>();
   private ttlMs: number;
+  private cleanupInterval?: NodeJS.Timeout;
 
   constructor(ttlHours: number = 24) {
     this.ttlMs = ttlHours * 60 * 60 * 1000;
 
     // Start cleanup interval (every hour)
-    setInterval(() => this.cleanup(), 60 * 60 * 1000);
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60 * 60 * 1000);
+    // Prevent the interval from keeping the process alive in tests
+    this.cleanupInterval.unref();
   }
 
   /**
@@ -143,6 +146,17 @@ export class SessionStore {
    * Clear all sessions (for testing)
    */
   clear(): void {
+    this.sessions.clear();
+  }
+
+  /**
+   * Destroy the session store and clean up resources
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = undefined;
+    }
     this.sessions.clear();
   }
 }
