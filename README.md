@@ -47,6 +47,13 @@ Doc-Bot is a lightweight TypeScript service that automatically maintains documen
    curl http://localhost:3000/health
    ```
 
+## Running Modes
+
+Doc-Bot supports two operational modes:
+
+1. **Webhook Mode** (Production): Automatically triggered by GitLab/GitHub webhooks
+2. **Task Mode** (Development/Manual): Interactive mode for iterative documentation updates
+
 ### Configuration
 
 Create a `.doc-bot.yaml` file in the root of your repository:
@@ -116,6 +123,73 @@ Bot only acts when explicitly invoked via `/doc-bot` commands.
 
 #### Hybrid Mode (Recommended)
 Bot auto-triages on MR/PR open/update and posts suggestions, but only takes action when commanded.
+
+## Task Mode (Interactive/Manual Mode)
+
+Task mode allows running doc-bot iteratively on a branch without waiting for webhooks:
+
+### Quick Start
+
+```bash
+# 1. Create a task configuration
+npx doc-bot-task init https://github.com/org/repo feature/new-api -o task.yaml
+
+# 2. (Optional) Edit task.yaml to add custom instructions
+echo "instructions: Focus on API reference documentation" >> task.yaml
+
+# 3. Preview what would change
+npx doc-bot-task run task.yaml --dry-run
+
+# 4. Execute documentation updates
+npx doc-bot-task run task.yaml
+```
+
+The first run creates a PR and saves the PR number to `task.yaml`.
+Subsequent runs update the same PR with new documentation changes.
+
+### Task Configuration
+
+Example `.doc-bot-task.yaml`:
+
+```yaml
+# Repository to work with
+repo: https://github.com/yourorg/yourproject
+platform: github
+project: yourorg/yourproject
+
+# Branch with code changes
+branch: feature/new-api
+base_branch: main
+
+# Optional: Existing PR number (auto-populated on first run)
+pr: "123"
+
+# Optional: Custom instructions for documentation updates
+instructions: |
+  Focus on the API reference documentation.
+  Ensure all new endpoints are documented.
+  Skip the tutorial sections.
+```
+
+### Task Mode Commands
+
+```bash
+# Initialize a new task
+doc-bot-task init <repo-url> <branch> [options]
+
+# Run a task
+doc-bot-task run <config-file> [--dry-run]
+
+# Check task status
+doc-bot-task status <config-file>
+```
+
+### Use Cases for Task Mode
+
+- **Development**: Test documentation updates before deploying webhooks
+- **Batch Updates**: Process multiple branches systematically
+- **Manual Control**: Review changes before creating PRs
+- **CI/CD Integration**: Run as part of existing pipelines
 
 ## Platform Setup
 
