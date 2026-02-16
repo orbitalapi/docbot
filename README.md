@@ -21,7 +21,7 @@ Doc-Bot is a lightweight TypeScript service that automatically maintains documen
 
 - Docker and Docker Compose
 - Anthropic API key
-- GitLab Group Access Token and/or GitHub App credentials
+- GitLab Access Token and/or GitHub credentials (App or Personal Access Token)
 
 ### Installation
 
@@ -121,17 +121,33 @@ Bot auto-triages on MR/PR open/update and posts suggestions, but only takes acti
 
 ### GitLab
 
-1. Create a Group Access Token with `api` scope
-2. Configure a group-level webhook:
+#### Option 1: Project-Level Webhook (Free Tier)
+
+1. Create a Project Access Token or Personal Access Token with `api` scope
+2. Configure project webhook on each repository:
+   - Go to **Settings → Webhooks**
    - **URL**: `https://your-docbot-host/webhooks/gitlab`
    - **Secret Token**: Your webhook secret
-   - **Triggers**: Merge request events, Comments
+   - **Triggers**: ✓ Merge request events, ✓ Comments
 3. Set environment variables:
    ```
-   GITLAB_TOKEN=your-group-token
+   GITLAB_TOKEN=your-project-or-personal-token
    GITLAB_WEBHOOK_SECRET=your-webhook-secret
    GITLAB_URL=https://gitlab.com  # or your self-hosted instance
    ```
+
+#### Option 2: Group-Level Webhook (Premium/Ultimate)
+
+If you have GitLab Premium or Ultimate, you can set up a single webhook for all projects in a group:
+
+1. Create a Group Access Token with `api` scope
+2. Configure group-level webhook at **Group → Settings → Webhooks**:
+   - **URL**: `https://your-docbot-host/webhooks/gitlab`
+   - **Secret Token**: Your webhook secret
+   - **Triggers**: ✓ Merge request events, ✓ Comments
+3. Set environment variables (same as Option 1)
+
+> **Note**: Both options work identically. Group-level webhooks are just a convenience to avoid setting up webhooks on each project individually.
 
 ### GitHub
 
@@ -151,10 +167,15 @@ Bot auto-triages on MR/PR open/update and posts suggestions, but only takes acti
    GITHUB_WEBHOOK_SECRET=your-webhook-secret
    ```
 
-#### Option 2: Personal Access Token
+#### Option 2: Personal Access Token (No App Install Required)
 
 1. Create a Personal Access Token with `repo` scope
-2. Configure webhooks manually on each repository
+2. Configure webhooks on each repository:
+   - Go to **Settings → Webhooks → Add webhook**
+   - **Payload URL**: `https://your-docbot-host/webhooks/github`
+   - **Content type**: `application/json`
+   - **Secret**: Your webhook secret
+   - **Events**: ✓ Pull requests, ✓ Issue comments
 3. Set environment variables:
    ```
    GITHUB_TOKEN=your-personal-token
@@ -204,7 +225,7 @@ Bot auto-triages on MR/PR open/update and posts suggestions, but only takes acti
 | `MAX_COST_PER_INVOCATION` | No (default: 2.00) | Cost ceiling per invocation (USD) |
 | `SESSION_TTL_HOURS` | No (default: 24) | Session retention time |
 | `LOG_LEVEL` | No (default: info) | Logging verbosity |
-| `GITLAB_TOKEN` | If using GitLab | Group access token |
+| `GITLAB_TOKEN` | If using GitLab | Project, Group, or Personal access token |
 | `GITLAB_WEBHOOK_SECRET` | If using GitLab | Webhook secret |
 | `GITLAB_URL` | No (default: https://gitlab.com) | GitLab instance URL |
 | `GITHUB_APP_ID` | If using GitHub App | GitHub App ID |
