@@ -129,7 +129,6 @@ async function processSameRepoUpdates(
 
     // Create MR/PR
     const mrResult = await ctx.platform.openMR(ctx.event.project, {
-      
       sourceBranch: branchName,
       targetBranch: ctx.event.targetBranch,
       title: `docs: Update documentation for !${ctx.event.mrId}`,
@@ -284,7 +283,6 @@ async function processSingleCrossRepo(
 
       // Create MR/PR in docs repo
       const mrResult = await docsPlatform.openMR(docsRepoInfo.project, {
-        
         sourceBranch: branchName,
         targetBranch: 'main',
         title: `docs: Update for ${ctx.event.project} changes`,

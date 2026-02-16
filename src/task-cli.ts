@@ -31,20 +31,44 @@ program
       // Load app config
       const appConfig = loadConfig();
 
+      // Initialize platform adapters
+      const platforms: any[] = [];
+
+      if (appConfig.GITLAB_TOKEN && appConfig.GITLAB_WEBHOOK_SECRET) {
+        const { GitLabAdapter } = await import('./platform/gitlab/adapter');
+        platforms.push(new GitLabAdapter(
+          appConfig.GITLAB_TOKEN,
+          appConfig.GITLAB_WEBHOOK_SECRET,
+          appConfig.GITLAB_URL
+        ));
+      }
+
+      if ((appConfig.GITHUB_APP_ID && appConfig.GITHUB_PRIVATE_KEY) || appConfig.GITHUB_TOKEN) {
+        const { GitHubAdapter } = await import('./platform/github/adapter');
+        platforms.push(new GitHubAdapter(
+          {
+            appId: appConfig.GITHUB_APP_ID,
+            privateKey: appConfig.GITHUB_PRIVATE_KEY,
+            token: appConfig.GITHUB_TOKEN,
+          },
+          appConfig.GITHUB_WEBHOOK_SECRET!
+        ));
+      }
+
       // Create platform resolver
-      const platformResolver = new PlatformResolver(appConfig);
+      const platformResolver = new PlatformResolver(platforms, appConfig.GITLAB_URL);
 
       // Create git manager
       const gitManager = new GitManager(taskConfig.workDir);
 
       // Create session store
-      const sessionStore = new SessionStore(appConfig.sessionTtlHours);
+      const sessionStore = new SessionStore(appConfig.SESSION_TTL_HOURS);
 
       // Create executor
       const executor = new TaskExecutor(
         platformResolver,
         gitManager,
-        appConfig.anthropicApiKey,
+        appConfig.ANTHROPIC_API_KEY,
         sessionStore
       );
 
