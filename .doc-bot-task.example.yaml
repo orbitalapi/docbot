@@ -1,0 +1,35 @@
+# Example task configuration for doc-bot task mode
+# This allows running doc-bot iteratively instead of via webhooks
+
+# Repository to work with (GitLab or GitHub)
+repo: https://github.com/yourorg/yourproject
+
+# Platform: gitlab or github
+platform: github
+
+# Project path (org/project)
+project: yourorg/yourproject
+
+# Branch to check for changes
+branch: feature/new-api
+
+# Base branch to compare against
+base_branch: main
+
+# Optional: Specific commits to analyze (if not specified, checks all commits in branch)
+# commits:
+#   - abc123def
+#   - def456abc
+
+# Optional: Existing PR/MR number
+# If not specified, doc-bot will create one and update this file with the PR number
+# pr: "123"
+
+# Optional: Working directory for clones
+# work_dir: /tmp/doc-bot-tasks
+
+# Optional: Instructions for the documentation update
+# instructions: |
+#   Focus on the API reference documentation.
+#   Ensure all new endpoints are documented.
+#   Skip the tutorial sections.

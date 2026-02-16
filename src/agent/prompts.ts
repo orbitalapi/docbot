@@ -75,7 +75,78 @@ Provide your analysis as a clear, structured markdown comment that can be posted
 }
 
 /**
- * Update prompt - makes documentation changes
+ * Update prompt with tools - makes documentation changes with file operations
+ */
+export function buildUpdatePromptWithTools(
+  diff: string,
+  docTargets: DocTarget[],
+  changedFiles: string[],
+  styleGuide?: string,
+  userInstructions?: string,
+  sameRepo: boolean = true
+): string {
+  const targetDescriptions = docTargets
+    .map(
+      (t, i) =>
+        `${i + 1}. **${t.docsPath}** (${t.mode})${t.docsRepo ? `\n   - Docs repo: ${t.docsRepo}` : ''}`
+    )
+    .join('\n');
+
+  const styleSection = styleGuide
+    ? `\n## Style Guide\n\n${styleGuide}\n`
+    : '\n## Style Guide\n\nNo specific style guide provided. Follow the existing style in the documentation.\n';
+
+  const userSection = userInstructions
+    ? `\n## User Instructions\n\n${userInstructions}\n`
+    : '';
+
+  const repoContext = sameRepo
+    ? 'The documentation is in the same repository as the source code.'
+    : 'The documentation is in a separate repository from the source code.';
+
+  return `# Documentation Update Task
+
+You are updating documentation to reflect code changes in an MR/PR.
+
+${repoContext}
+
+## Changed Files
+${changedFiles.map((f) => `- ${f}`).join('\n')}
+
+## Code Diff
+\`\`\`diff
+${diff}
+\`\`\`
+
+## Documentation Targets
+${targetDescriptions}
+${styleSection}${userSection}
+## Your Task
+
+Use the available tools to:
+1. **Explore** the documentation structure using \`glob\` or \`list_directory\`
+2. **Read** the current documentation files using \`read_file\`
+3. **Analyze** the code changes and their impact on the docs
+4. **Update** the documentation files using \`write_file\` to reflect the changes
+5. **Verify** your changes by reading the files back
+
+When finished, provide a summary including:
+- What files you modified
+- What changes you made and why
+- Any notes or concerns
+
+**Important Guidelines:**
+- Only edit documentation files, never code files
+- Preserve the existing documentation structure and style
+- Be precise and focused - only change what's affected by the code changes
+- Use write_file to completely replace file contents (not append)
+- Follow the style guide if provided
+
+Begin by exploring the documentation structure.`;
+}
+
+/**
+ * Update prompt - makes documentation changes (legacy, non-tool version)
  */
 export function buildUpdatePrompt(
   diff: string,

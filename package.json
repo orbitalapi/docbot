@@ -6,12 +6,16 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "task": "node dist/task-cli.js",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
+  },
+  "bin": {
+    "doc-bot-task": "./dist/task-cli.js"
   },
   "keywords": [
     "documentation",
@@ -28,7 +32,10 @@
     "@octokit/auth-app": "^6.0.3",
     "@octokit/rest": "^20.0.2",
     "@octokit/webhooks": "^12.0.10",
+    "@types/glob": "^8.1.0",
+    "commander": "^12.1.0",
     "express": "^4.18.2",
+    "glob": "^10.5.0",
     "js-yaml": "^4.1.0",
     "minimatch": "^9.0.3",
     "pino": "^8.17.2",

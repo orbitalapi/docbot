@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../util/logger';
 import { SYSTEM_PROMPT } from './prompts';
+import { TOOL_DEFINITIONS, executeTool } from './tools';
 
 export interface AgentConfig {
   /** Anthropic API key */
@@ -24,6 +25,8 @@ export interface AgentResult {
   cost: number;
   /** Number of turns taken */
   turns: number;
+  /** Files that were modified */
+  modifiedFiles: string[];
 }
 
 /**
@@ -43,10 +46,15 @@ export class AgentOrchestrator {
    * Run the agent with a task prompt
    * @param taskPrompt The task-specific prompt
    * @param sessionId Optional session ID to resume
+   * @param enableTools Whether to enable file operation tools (default: false)
    * @returns Agent result
    */
-  async run(taskPrompt: string, sessionId?: string): Promise<AgentResult> {
-    logger.info({ sessionId, workDir: this.config.workDir }, 'Running agent');
+  async run(
+    taskPrompt: string,
+    sessionId?: string,
+    enableTools: boolean = false
+  ): Promise<AgentResult> {
+    logger.info({ sessionId, workDir: this.config.workDir, enableTools }, 'Running agent');
 
     // Build system prompt with optional style guide
     let systemPrompt = SYSTEM_PROMPT;
@@ -54,56 +62,149 @@ export class AgentOrchestrator {
       systemPrompt += `\n\n---\n\n# Project Style Guide\n\n${this.config.styleGuide}`;
     }
 
-    // For now, we'll implement a simple single-turn interaction
-    // In a full implementation, this would use the Claude Agent SDK for multi-turn interactions
-    // with tool use (Read, Edit, Glob, Grep, git commands)
+    if (enableTools) {
+      systemPrompt += `\n\n---\n\nYou have access to file operation tools. Use them to read, edit, and search files in the working directory at: ${this.config.workDir}`;
+    }
 
     const startTime = Date.now();
     let turns = 0;
     let totalCost = 0;
+    const modifiedFiles = new Set<string>();
+
+    const messages: Anthropic.MessageParam[] = [
+      {
+        role: 'user',
+        content: taskPrompt,
+      },
+    ];
 
     try {
-      const response = await this.client.messages.create({
-        model: this.config.model,
-        max_tokens: 8192,
-        system: systemPrompt,
-        messages: [
-          {
+      // Multi-turn interaction loop
+      while (turns < this.config.maxTurns) {
+        turns++;
+
+        const requestParams: Anthropic.MessageCreateParamsNonStreaming = {
+          model: this.config.model,
+          max_tokens: 8192,
+          system: systemPrompt,
+          messages,
+        };
+
+        // Add tools if enabled
+        if (enableTools) {
+          requestParams.tools = TOOL_DEFINITIONS as any;
+        }
+
+        const response = await this.client.messages.create(requestParams);
+
+        // Calculate cost
+        totalCost += this.calculateCost(response.usage);
+
+        // Check if we hit stop reason
+        if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
+          // Extract final text response
+          const responseText = response.content
+            .filter((block) => block.type === 'text')
+            .map((block) => ('text' in block ? block.text : ''))
+            .join('\n');
+
+          const elapsed = Date.now() - startTime;
+
+          logger.info(
+            {
+              turns,
+              cost: totalCost,
+              elapsed,
+              modifiedFiles: Array.from(modifiedFiles),
+            },
+            'Agent completed'
+          );
+
+          return {
+            response: responseText,
+            sessionId: sessionId || this.generateSessionId(),
+            cost: totalCost,
+            turns,
+            modifiedFiles: Array.from(modifiedFiles),
+          };
+        }
+
+        // Handle tool use
+        if (response.stop_reason === 'tool_use') {
+          // Add assistant's response to messages
+          messages.push({
+            role: 'assistant',
+            content: response.content,
+          });
+
+          // Execute tools and collect results
+          const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+          for (const block of response.content) {
+            if (block.type === 'tool_use') {
+              logger.debug({ toolName: block.name, toolInput: block.input }, 'Executing tool');
+
+              const toolInput = block.input as Record<string, any>;
+              const result = await executeTool(this.config.workDir, block.name, toolInput);
+
+              // Track modified files
+              if (block.name === 'write_file' && result.success && toolInput.file_path) {
+                modifiedFiles.add(toolInput.file_path);
+              }
+
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: block.id,
+                content: result.success
+                  ? result.content || 'Success'
+                  : `Error: ${result.error}`,
+                is_error: !result.success,
+              });
+            }
+          }
+
+          // Add tool results to messages
+          messages.push({
             role: 'user',
-            content: taskPrompt,
-          },
-        ],
-      });
+            content: toolResults,
+          });
 
-      turns = 1;
+          // Continue loop for next turn
+          continue;
+        }
 
-      // Calculate cost (approximate)
-      totalCost = this.calculateCost(response.usage);
+        // Max tokens reached - return partial result
+        if (response.stop_reason === 'max_tokens') {
+          logger.warn('Agent hit max_tokens limit');
 
-      const responseText =
-        response.content
-          .filter((block) => block.type === 'text')
-          .map((block) => ('text' in block ? block.text : ''))
-          .join('\n') || '';
+          const responseText = response.content
+            .filter((block) => block.type === 'text')
+            .map((block) => ('text' in block ? block.text : ''))
+            .join('\n');
 
-      const elapsed = Date.now() - startTime;
+          return {
+            response: responseText + '\n\n[Response truncated - max tokens reached]',
+            sessionId: sessionId || this.generateSessionId(),
+            cost: totalCost,
+            turns,
+            modifiedFiles: Array.from(modifiedFiles),
+          };
+        }
 
-      logger.info(
-        {
-          turns,
-          cost: totalCost,
-          elapsed,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-        },
-        'Agent completed'
-      );
+        // Unexpected stop reason
+        logger.warn({ stopReason: response.stop_reason }, 'Unexpected stop reason');
+        break;
+      }
+
+      // Max turns reached
+      logger.warn({ maxTurns: this.config.maxTurns }, 'Agent hit max turns limit');
 
       return {
-        response: responseText,
+        response: '[Max turns reached - agent stopped]',
         sessionId: sessionId || this.generateSessionId(),
         cost: totalCost,
         turns,
+        modifiedFiles: Array.from(modifiedFiles),
       };
     } catch (error) {
       logger.error({ error }, 'Agent execution failed');
@@ -146,23 +247,3 @@ export class AgentOrchestrator {
   }
 }
 
-/**
- * NOTE: This is a simplified implementation.
- *
- * A production version would use the Claude Agent SDK (or similar) to:
- * 1. Enable multi-turn interactions with tool use
- * 2. Allow the agent to read/edit files in the working directory
- * 3. Support resuming sessions for the feedback loop
- * 4. Provide read-only git commands (diff, log, status)
- *
- * For the initial implementation, we're using a simple single-turn API call.
- * The agent will provide analysis and recommendations, but won't directly
- * modify files. The workflows will handle file modifications based on the
- * agent's recommendations.
- *
- * To upgrade to full agent capabilities:
- * - Integrate @anthropic-ai/claude-code or similar SDK
- * - Implement tool handlers for Read, Edit, Glob, Grep
- * - Add git command tools (read-only: diff, log, status)
- * - Implement proper session management for multi-turn interactions
- */
