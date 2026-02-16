@@ -1,6 +1,7 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { GitManager } from '../../../src/git/manager';
 import simpleGit, { SimpleGit } from 'simple-git';
+import { mkdir, rm } from 'fs/promises';
 
 // Mock simple-git
 jest.mock('simple-git');
@@ -8,27 +9,37 @@ jest.mock('simple-git');
 describe('GitManager', () => {
   let gitManager: GitManager;
   let mockGit: jest.Mocked<SimpleGit>;
+  const testBaseDir = '/tmp/docbot-git-manager-test';
 
-  beforeEach(() => {
-    gitManager = new GitManager('/tmp/test');
+  beforeEach(async () => {
+    // Create test base directory
+    await mkdir(testBaseDir, { recursive: true });
+    gitManager = new GitManager(testBaseDir);
 
-    // Create mock git instance
+    // Create mock git instance - use explicit implementations to avoid type issues
     mockGit = {
-      clone: jest.fn().mockResolvedValue(undefined),
-      checkoutLocalBranch: jest.fn().mockResolvedValue(undefined),
-      checkout: jest.fn().mockResolvedValue(undefined),
-      add: jest.fn().mockResolvedValue(undefined),
-      addConfig: jest.fn().mockResolvedValue(undefined),
-      commit: jest.fn().mockResolvedValue(undefined),
-      push: jest.fn().mockResolvedValue(undefined),
-      status: jest.fn().mockResolvedValue({
-        current: 'main',
-        staged: ['file.txt'],
-      } as any),
-      diff: jest.fn().mockResolvedValue('diff content'),
+      clone: jest.fn(() => Promise.resolve()),
+      checkoutLocalBranch: jest.fn(() => Promise.resolve()),
+      checkout: jest.fn(() => Promise.resolve()),
+      add: jest.fn(() => Promise.resolve()),
+      addConfig: jest.fn(() => Promise.resolve()),
+      commit: jest.fn(() => Promise.resolve()),
+      push: jest.fn(() => Promise.resolve()),
+      status: jest.fn(() =>
+        Promise.resolve({
+          current: 'main',
+          staged: ['file.txt'],
+        })
+      ),
+      diff: jest.fn(() => Promise.resolve('diff content')),
     } as any;
 
     (simpleGit as jest.MockedFunction<typeof simpleGit>).mockReturnValue(mockGit);
+  });
+
+  afterEach(async () => {
+    // Clean up test directory
+    await rm(testBaseDir, { recursive: true, force: true });
   });
 
   describe('clone', () => {
@@ -115,9 +126,11 @@ describe('GitManager', () => {
     });
 
     it('should fail if no changes to commit', async () => {
-      mockGit.status = jest.fn().mockResolvedValue({
-        staged: [],
-      } as any);
+      mockGit.status = jest.fn(() =>
+        Promise.resolve({
+          staged: [],
+        })
+      ) as any;
 
       await expect(
         gitManager.commit(mockGit, { message: 'Test' })
@@ -160,9 +173,11 @@ describe('GitManager', () => {
 
   describe('getCurrentBranch', () => {
     it('should return current branch name', async () => {
-      mockGit.status = jest.fn().mockResolvedValue({
-        current: 'develop',
-      } as any);
+      mockGit.status = jest.fn(() =>
+        Promise.resolve({
+          current: 'develop',
+        })
+      ) as any;
 
       const branch = await gitManager.getCurrentBranch(mockGit);
 

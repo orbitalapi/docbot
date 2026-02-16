@@ -1,9 +1,6 @@
 import { readFile, writeFile, readdir } from 'fs/promises';
 import { join, resolve } from 'path';
-import { glob as globSync } from 'glob';
-import { promisify } from 'util';
-
-const globAsync = promisify(globSync);
+import { glob } from 'glob';
 
 /**
  * File operation tools for Claude agent
@@ -30,8 +27,9 @@ export async function readFileTool(workDir: string, filePath: string): Promise<T
 
     const content = await readFile(absolutePath, 'utf-8');
     return { success: true, content };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  } catch (error: any) {
+    const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -53,8 +51,9 @@ export async function writeFileTool(
 
     await writeFile(absolutePath, content, 'utf-8');
     return { success: true };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  } catch (error: any) {
+    const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -63,7 +62,7 @@ export async function writeFileTool(
  */
 export async function globTool(workDir: string, pattern: string): Promise<ToolResult> {
   try {
-    const filesResult = await globAsync(pattern, {
+    const filesResult = await glob(pattern, {
       cwd: workDir,
       nodir: true,
       dot: false,
@@ -71,8 +70,9 @@ export async function globTool(workDir: string, pattern: string): Promise<ToolRe
 
     const files = Array.isArray(filesResult) ? filesResult : [];
     return { success: true, content: files.join('\n') };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  } catch (error: any) {
+    const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -87,11 +87,10 @@ export async function grepTool(
   try {
     // Get files to search
     const filesResult = filePattern
-      ? await globAsync(filePattern, { cwd: workDir, nodir: true })
-      : await globAsync('**/*', { cwd: workDir, nodir: true, dot: false });
+      ? await glob(filePattern, { cwd: workDir, nodir: true })
+      : await glob('**/*', { cwd: workDir, nodir: true, dot: false });
 
     const files = Array.isArray(filesResult) ? filesResult : [];
-    const regex = new RegExp(pattern, 'gi');
     const results: string[] = [];
 
     for (const file of files) {
@@ -99,6 +98,7 @@ export async function grepTool(
       try {
         const content = await readFile(absolutePath, 'utf-8');
         const lines = content.split('\n');
+        const regex = new RegExp(pattern, 'i'); // Create regex per file to avoid state issues
 
         lines.forEach((line, idx) => {
           if (regex.test(line)) {
@@ -112,8 +112,9 @@ export async function grepTool(
     }
 
     return { success: true, content: results.join('\n') };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  } catch (error: any) {
+    const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -136,8 +137,9 @@ export async function listDirectoryTool(workDir: string, dirPath: string = '.'):
     });
 
     return { success: true, content: formatted.join('\n') };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  } catch (error: any) {
+    const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
+    return { success: false, error: errorMessage };
   }
 }
 
